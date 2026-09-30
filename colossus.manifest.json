@@ -1,9 +1,27 @@
 {
-  "schemaVersion": 1,
+  "build": {
+    "dockerfile": "Dockerfile",
+    "method": "dockerfile",
+    "port": 80
+  },
+  "env": {
+    "required": []
+  },
   "name": "template-enterprise",
+  "run": {},
+  "schemaVersion": 1,
   "services": [
-    {"type": "postgresql", "source": "cluster"},
-    {"type": "redis", "source": "cluster"},
-    {"type": "minio", "source": "cluster"}
+    {
+      "source": "cluster",
+      "type": "postgresql"
+    },
+    {
+      "source": "cluster",
+      "type": "redis"
+    },
+    {
+      "source": "cluster",
+      "type": "minio"
+    }
   ]
 }
