@@ -169,6 +169,7 @@ export class AuthController {
   /**
    * Create an invite token a teammate can use to sign up.
    */
+  @RequireAdmin()
   @UseGuards(JwtAuthGuard)
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
