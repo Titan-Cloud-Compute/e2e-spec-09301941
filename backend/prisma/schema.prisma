@@ -1,0 +1,139 @@
+// Prisma schema for the template enterprise backend.
+// Kept models: User, AuditLog, SystemSetting, RegistrationToken.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "linux-arm64-openssl-1.1.x", "linux-arm64-openssl-3.0.x"]
+  engineType   = "library"
+}
+
+// Connection URL lives in prisma.config.ts (Prisma 7+ requirement).
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector, pg_trgm]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum AuditActor {
+  SYSTEM
+  USER
+  ADMIN
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  passwordHash  String?
+  name      String?
+  role      UserRole   @default(USER)
+  // Backward-compat: the user's single "primary" model id.
+  defaultLlmModelId String?
+  // Model ENTITLEMENT copied from the redeemed registration token.
+  grantedModelIds String[] @default([])
+  // Chat-quota RESET EPOCH.
+  quotaResetAt DateTime?
+  auditLogs AuditLog[] @relation("AuditActor")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  tokensCreated  RegistrationToken[] @relation("CreatedTokens")
+  tokensConsumed RegistrationToken[] @relation("ConsumedTokens")
+  passwordResetTokens PasswordResetToken[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit log
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String     @id @default(cuid())
+  firmId       String?
+  actor        AuditActor
+  actorUserId  String?
+  actorUser    User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action       String
+  payloadJson  Json
+  createdAt    DateTime   @default(now())
+
+  @@index([actorUserId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// System settings (runtime override of service credentials)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Registration tokens (one-time admin-issued invite codes for signup)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RegistrationToken {
+  token        String    @id
+  createdAt    DateTime  @default(now())
+  createdById  String?
+  createdBy    User?     @relation("CreatedTokens",  fields: [createdById],  references: [id], onDelete: SetNull)
+  consumed     Boolean   @default(false)
+  consumedAt   DateTime?
+  consumedById String?
+  consumedBy   User?     @relation("ConsumedTokens", fields: [consumedById], references: [id], onDelete: SetNull)
+  firmId       String?
+  role         String?
+  expiresAt    DateTime?
+  grantedModelIds String[] @default([])
+
+  @@index([consumed])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Password reset tokens (single-use, short-lived, per OWASP guidance)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consumed   Boolean   @default(false)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([token])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Colossus managed accounts (seeded from COLOSSUS_ACCOUNTS_JSON)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ColossusAccount {
+  id           String   @id @default(cuid())
+  role         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  loginPath    String?  @map("login_path")
+  createdBy    String   @default("colossus") @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("colossus_accounts")
+}

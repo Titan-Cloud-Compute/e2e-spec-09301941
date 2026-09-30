@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "template-enterprise",
+  "services": [
+    {"type": "postgresql", "source": "cluster"},
+    {"type": "redis", "source": "cluster"},
+    {"type": "minio", "source": "cluster"}
+  ]
+}
